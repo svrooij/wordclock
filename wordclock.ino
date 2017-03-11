@@ -1,6 +1,15 @@
+// -------------------------------------
+// Dutch Wordclock by Stephan van Rooij
+//
+// github@svrooij.nl
+//
+// Hardware:
+// - ESP8266
+// - DS1307 (TinyRTC module)
+// - 114x WS2811
+// -------------------------------------
 //// ESP8266 Clock controller
 #include <Time.h>
-#include <TimeLib.h>
 
 #if defined(ESP8266)
 #include <pgmspace.h>
@@ -22,47 +31,58 @@ RtcDS1307<TwoWire> Rtc(Wire);
 
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, LEDPIN, NEO_GRB + NEO_KHZ800);
 
-// colors
+// Some colors (not all are used at the moment)
 uint32_t colorWhite = pixels.Color(255, 255, 255);
 uint32_t colorBlack = pixels.Color(0, 0, 0);
 uint32_t colorRed = pixels.Color(255, 0, 0);
 uint32_t colorGreen = pixels.Color(0, 255, 0);
 uint32_t colorBlue = pixels.Color(0, 0, 255);
 uint32_t colorJGreen = pixels.Color(50, 179, 30);
+uint32_t colorYellow = pixels.Color(255,255, 0);
 
 // words (in dutch, sorry) consisting of pixel numbers starting by 0.
 // -1 is the marker to know to break the loop.
 // Row 1 left to right 0-12
+// H E T K I S A V I J F
 int wrdHetIs[] = {1,2,3,5,6,-1};
 //int wrdIs[] = {5,6,-1};
 int wrdVijfAlt[] = {8,9,10,11,-1};
 // Row 2 right to left 13-23
+// T I E N A T Z V O O R
 int wrdTienAlt[] = {23,22,21,20,-1};
 int wrdVoor1[] = {16,15,14,13,-1};
 // Row 3 left to right 24-34
+// O V E R M E K W A R T
 int wrdOver1[] = {24,25,26,27,-1};
 int wrdKwart[] = {30,31,32,33,34,-1};
 // Row 4 right to left 35-45
+// H A L F S P M O V E R
 int wrdHalf[] = {45,44,43,42,-1};
 int wrdOver2[]= {38,37,36,35,-1};
 // Row 5 left to right 46-56
+// V O O R T H G E E N S
 int wrdVoor2[] = {46,47,48,49,-1};
 int wrdEen[] = {53,54,55,-1};
 // Row 6 right to left 57-67
+// T W E E A M C D R I E
 int wrdTwee [] = {67,66,65,64,-1};
 int wrdDrie[] = {60,59,58,57,-1};
 // Row 7 left to right 68-78
+// V I E R V I J F Z E S
 int wrdVier[] = {68,69,70,71,-1};
 int wrdVijf[] = {72,73,74,75,-1};
 int wrdZes[] = {76,77,78,-1};
 // Row 8 right to left 79-89
+// Z E V E N O N E G E N
 int wrdZeven[] = {89,88,87,86,85,-1};
 int wrdNegen[] = {83,82,81,80,79,-1};
 // Row 9 left to right 90-100
+// A C H T T I E N E L F
 int wrdAcht[] = {90,91,92,93,-1};
 int wrdTien[] = {94,95,96,97,-1};
 int wrdElf[] = {98,99,100,-1};
 // Row 10 right to left 101-113
+// T W A A L F P M U U R
 int wrdTwaalf[] = {112,111,110,109,108,107,-1};
 int wrdUur[] = {104,103,102,-1};
 
@@ -71,6 +91,60 @@ int minLeds[] = {0,12,101,113};
 // Settings
 const bool drawHetIs = true;
 
+// ---------------------------------------------
+// Arduino OTA (BasicOTA sample)
+#include <ESP8266WiFi.h>
+#include <ESP8266mDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+
+// Input your own SSID and password here for OTA updates
+const char* ssid = "wifi-name";
+const char* password = "wifipassword";
+
+void setupOTA(){
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
+    Serial.println("Connection Failed! Rebooting...");
+    delay(5000);
+    ESP.restart();
+  }
+
+  // Port defaults to 8266
+  // ArduinoOTA.setPort(8266);
+
+  // Hostname defaults to esp8266-[ChipID]
+  // ArduinoOTA.setHostname("myesp8266");
+
+  // No authentication by default
+  ArduinoOTA.setPassword((const char *)"123");
+
+  ArduinoOTA.onStart([]() {
+    Serial.println("Start OTA");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd OTA");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress OTA: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
+  Serial.println("Ready");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+
+}
+// Arduino OTA (BasicOTA sample)
+// ---------------------------------------------
 
 void setup() {
   // Set the correct pins for I2c
@@ -85,13 +159,15 @@ void setup() {
 //  Serial.println(__TIME__);
   delay(1000);
 
-
-  pixels.begin();
-  pixels.setBrightness(10);
-  colorWipe(colorRed);
-  pixels.show();
-
+  // Configure the Clock module.
   setupClock();
+
+  // Remove this line to disable OTA
+  setupOTA();
+
+  // Start neopixel module and run some tests.
+  pixels.begin();
+  testLeds();
 }
 
 // Setup for the RTC module.
@@ -159,7 +235,8 @@ void loop() {
   } else {
     // Should the app crash if the time is not correct??
   }
-  delay(10000);
+  ArduinoOTA.handle();
+  delay(5000);
 }
 
 // function copied from rtc sample.
@@ -178,7 +255,16 @@ void printDateTime(const RtcDateTime& dt) {
             dt.Hour(),
             dt.Minute(),
             dt.Second() );
-    Serial.print(datestring);
+    Serial.println(datestring);
+}
+
+void testLeds(){
+
+  pixels.setBrightness(40);
+  colorWipe(colorRed,20);
+  colorWipe(colorGreen,20);
+  colorWipe(colorBlue,20);
+  delay(1000);
 }
 
 // This is the main function for setting the correct words based on the time.
@@ -186,8 +272,15 @@ void setLedsByTime(const RtcDateTime& dt){
   colorWipe(colorBlack);
   int minutes = dt.Minute();
 
+  int uren = dt.Hour();
+  if(uren >= 8 && uren < 23) {
+    pixels.setBrightness(200);
+  } else {
+    pixels.setBrightness(50);
+  }
+
   if(drawHetIs){
-    paintWord(wrdHetIs);
+    paintWord(wrdHetIs,colorWhite);
   }
 
   // modMin is the minutes left over if devived by 5
@@ -219,8 +312,10 @@ void setLedsByTime(const RtcDateTime& dt){
     for(int i = 0; i < modMin;i++){
       pixels.setPixelColor(minLeds[i],colorWhite);
     }
-    pixels.show();
+
   }
+
+  pixels.show();
 }
 
 // Paint the words in between hours.
@@ -325,14 +420,25 @@ void colorWipe(uint32_t color) {
   for(uint16_t i=0; i<NUMPIXELS; i++) {
       pixels.setPixelColor(i, color);
   }
-  pixels.show();
+}
+
+// Fill the dots one after the other with a color
+void colorWipe(uint32_t color, int wait) {
+  for(uint16_t i=0; i<NUMPIXELS; i++) {
+      pixels.setPixelColor(i, color);
+      if(wait > 0){
+        pixels.show();
+        delay(wait);
+      }
+  }
 }
 
 // Paint a word, accepts an array of pixel numbers and a color.
 void paintWord(int arrWord[], uint32_t intColor){
   for(int i = 0; i < NUMPIXELS; i++){
     if(arrWord[i] == -1){
-      pixels.show();
+      //pixels.show();
+      //pixels.show();
       break;
     }else{
       pixels.setPixelColor(arrWord[i],intColor);
@@ -345,7 +451,7 @@ void paintWord(int arrWord[]){
   paintWord(arrWord,colorWhite);
 }
 
-// Same as paintWord, but wait 500ms between each letter.
+// Same as paintWord, but wait 300ms between each letter.
 void spellWord(int arrWord[], uint32_t intColor){
   for(int i = 0; i < NUMPIXELS; i++){
     if(arrWord[i] == -1){
@@ -353,7 +459,7 @@ void spellWord(int arrWord[], uint32_t intColor){
     }else{
       pixels.setPixelColor(arrWord[i],intColor);
       pixels.show();
-      delay(500);
+      delay(300);
     }
   }
 }
