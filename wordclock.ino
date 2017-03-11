@@ -86,7 +86,11 @@ int wrdElf[] = {98,99,100,-1};
 int wrdTwaalf[] = {112,111,110,109,108,107,-1};
 int wrdUur[] = {104,103,102,-1};
 
+// Leds used for minutes between the words.
 int minLeds[] = {0,12,101,113};
+
+// Extra words
+int wrdStephan[] = {6,18,29,40,51,63,85,-1};
 
 // Settings
 const bool drawHetIs = true;
@@ -261,22 +265,31 @@ void printDateTime(const RtcDateTime& dt) {
 void testLeds(){
 
   pixels.setBrightness(40);
-  colorWipe(colorRed,20);
-  colorWipe(colorGreen,20);
-  colorWipe(colorBlue,20);
-  delay(1000);
+  colorWipe(colorRed,30);
+  colorWipe(colorGreen,30);
+  colorWipe(colorBlue,30);
+  colorWipe(colorBlack,30);
+  spellWord(wrdStephan,colorJGreen);
+  delay(3000);
 }
 
 // This is the main function for setting the correct words based on the time.
 void setLedsByTime(const RtcDateTime& dt){
   colorWipe(colorBlack);
+  
   int minutes = dt.Minute();
 
+  if(minutes == 0 && dt.Second() < 11){
+    spellWord(wrdStephan,colorJGreen);
+    delay(9000);
+    colorWipe(colorBlack);
+  }
+
   int uren = dt.Hour();
-  if(uren >= 8 && uren < 23) {
-    pixels.setBrightness(200);
+  if(uren >= 8 && uren < 22) {
+    pixels.setBrightness(100);
   } else {
-    pixels.setBrightness(50);
+    pixels.setBrightness(40);
   }
 
   if(drawHetIs){
