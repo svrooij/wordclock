@@ -21,5 +21,10 @@ I've only put 2 WS2812 leds in the picture, but you'll get point they are chain 
 
 The code is heavily inspired by [Javelin Word Clock](https://github.com/nitrohawk/Javelin-Word-Clock) and some sample libraries. I've tried to put in as much comments as possible.
 
-## WIP
-This is a work in progress and not done (by far). Please hold on.
+# Result
+
+This is the result of all the hand work.
+![All leds on](everything_on.jpg)
+
+Kwart voor twee
+![Kwart voor twee](kwart_voor_twee.jpg)
