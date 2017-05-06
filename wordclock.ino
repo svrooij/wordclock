@@ -106,6 +106,18 @@ const bool drawHetIs = true;
 const char* ssid = "wifi-name";
 const char* password = "wifipassword";
 
+// NTP Stuff here.
+// found on https://github.com/abzman/esp-stuff/blob/master/esp_mqtt_rtc/esp_mqtt_rtc.ino
+// Thanks for the help!
+// His code is slightly modified here to fetch a random IP from the pool
+IPAddress timeServerIP;
+const char* ntpServerName = "nl.pool.ntp.org";
+unsigned int localPort = 2390;
+const int NTP_PACKET_SIZE = 48;
+byte ntpBuffer[NTP_PACKET_SIZE];
+WiFiUDP udp;
+
+
 void setupOTA(){
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -146,6 +158,9 @@ void setupOTA(){
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
+  // The UDP is for NTP Sync
+  udp.begin(localPort);
+
 }
 // Arduino OTA (BasicOTA sample)
 // ---------------------------------------------
@@ -168,6 +183,10 @@ void setup() {
 
   // Remove this line to disable OTA
   setupOTA();
+
+  // Build-in some NTP sync
+  // RTC Need wifi, this is enabled in setupOTA, so enanble that as well.
+  setRTC();
 
   // Start neopixel module and run some tests.
   pixels.begin();
@@ -476,3 +495,119 @@ void spellWord(int arrWord[], uint32_t intColor){
     }
   }
 }
+
+void setRTC(){
+  Serial.print("RTC before : ");
+  printDateTime(Rtc.GetDateTime());
+
+  // Get a random IP from the pool
+  WiFi.hostByName(ntpServerName, timeServerIP);
+
+  sendNTPpacket(timeServerIP);
+  delay(1000);
+
+  int cb = udp.parsePacket();
+  if (!cb) {
+    Serial.println("no packet yet");
+  }
+  else {
+    Serial.print("packet received, length=");
+    Serial.println(cb);
+    // We've received a packet, read the data from it
+    udp.read(ntpBuffer, NTP_PACKET_SIZE); // read the packet into the buffer
+
+    // NTP contains four timestamps with an integer part and a fraction part
+    // we only use the integer part here
+    unsigned long t1, t2, t3, t4;
+    t1 = t2 = t3 = t4 = 0;
+    for (int i = 0; i < 4; i++)
+    {
+      t1 = t1 << 8 | ntpBuffer[16 + i];
+      t2 = t2 << 8 | ntpBuffer[24 + i];
+      t3 = t3 << 8 | ntpBuffer[32 + i];
+      t4 = t4 << 8 | ntpBuffer[40 + i];
+    }
+
+    // part of the fractional part
+    // could be 4 bytes but this is more precise than the 1307 RTC
+    // which has a precision of ONE second
+    // in fact one byte is sufficient for 1307
+    float f1, f2, f3, f4;
+    f1 = ((long)ntpBuffer[20] * 256 + ntpBuffer[21]) / 65536.0;
+    f2 = ((long)ntpBuffer[28] * 256 + ntpBuffer[29]) / 65536.0;
+    f3 = ((long)ntpBuffer[36] * 256 + ntpBuffer[37]) / 65536.0;
+    f4 = ((long)ntpBuffer[44] * 256 + ntpBuffer[45]) / 65536.0;
+
+    // NOTE:
+    // one could use the fractional part to set the RTC more precise
+    // 1) at the right (calculated) moment to the NEXT second!
+    //    t4++;
+    //    delay(1000 - f4*1000);
+    //    RTC.adjust(DateTime(t4));
+    //    keep in mind that the time in the packet was the time at
+    //    the NTP server at sending time so one should take into account
+    //    the network latency (try ping!) and the processing of the data
+    //    ==> delay (850 - f4*1000);
+    // 2) simply use it to round up the second
+    //    f > 0.5 => add 1 to the second before adjusting the RTC
+    //   (or lower threshold eg 0.4 if one keeps network latency etc in mind)
+    // 3) a SW RTC might be more precise, => ardomic clock :)
+
+
+    // convert NTP to UNIX time, differs seventy years = 2208988800 seconds
+    // NTP starts Jan 1, 1900
+    // Unix time starts on Jan 1 1970.
+#define SECONDS_FROM_1970_TO_2000 946684800
+    const unsigned long seventyYears = 2208988800UL + 946684800UL; //library differences, it wants seconds since 2000 not 1970
+    t1 -= seventyYears;
+    t2 -= seventyYears;
+    t3 -= seventyYears;
+    t4 -= seventyYears;
+
+    Serial.println("T1 .. T4 && fractional parts");
+    printDateTime(RtcDateTime(t1)); Serial.println(f1, 4);
+    printDateTime(RtcDateTime(t2)); Serial.println(f2, 4);
+    printDateTime(RtcDateTime(t3)); Serial.println(f3, 4);
+
+    printDateTime(t4); Serial.println(f4, 4);
+    Serial.println();
+
+    // Adjust timezone and DST... in my case substract 4 hours for Chile Time
+    // or work in UTC?
+    //t4 -= (4 * 3600L);     // Notice the L for long calculations!!
+    t4 += (2 * 3600L);
+    t4 += 1;               // adjust the delay(1000) at begin of loop!
+    if (f4 > 0.4) t4++;    // adjust fractional part, see above
+    Rtc.SetDateTime(t4);
+    Serial.print("RTC after : ");
+    printDateTime(Rtc.GetDateTime());    
+    Serial.println();
+    printDateTime(t4); Serial.println(f4, 4);
+    Serial.println();
+  }
+}
+
+unsigned long sendNTPpacket(IPAddress& address){
+  Serial.println("sending NTP packet...");
+  // set all bytes in the buffer to 0
+  memset(ntpBuffer, 0, NTP_PACKET_SIZE);
+  // Initialize values needed to form NTP request
+  // (see URL above for details on the packets)
+  ntpBuffer[0] = 0b11100011;   // LI, Version, Mode
+  ntpBuffer[1] = 0;     // Stratum, or type of clock
+  ntpBuffer[2] = 6;     // Polling Interval
+  ntpBuffer[3] = 0xEC;  // Peer Clock Precision
+  // 8 bytes of zero for Root Delay & Root Dispersion
+  ntpBuffer[12]  = 49;
+  ntpBuffer[13]  = 0x4E;
+  ntpBuffer[14]  = 49;
+  ntpBuffer[15]  = 52;
+
+  // all NTP fields have been given values, now
+  // you can send a packet requesting a timestamp:
+  udp.beginPacket(address, 123); //NTP requests are to port 123
+  udp.write(ntpBuffer, NTP_PACKET_SIZE);
+  udp.endPacket();
+}
+
+
