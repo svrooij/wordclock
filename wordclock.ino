@@ -121,20 +121,21 @@ WiFiUDP udp;
 void setupOTA(){
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
-    Serial.println("Connection Failed! Rebooting...");
-    delay(5000);
-    ESP.restart();
-  }
+  delay(3000);
+//  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
+//    Serial.println("Connection Failed! Rebooting...");
+//    delay(5000);
+//    ESP.restart();
+//  }
 
   // Port defaults to 8266
   // ArduinoOTA.setPort(8266);
 
   // Hostname defaults to esp8266-[ChipID]
-  // ArduinoOTA.setHostname("myesp8266");
+  ArduinoOTA.setHostname("wordclock");
 
   // No authentication by default
-  ArduinoOTA.setPassword((const char *)"123");
+  ArduinoOTA.setPassword((const char *)"clock");
 
   ArduinoOTA.onStart([]() {
     Serial.println("Start OTA");
@@ -177,6 +178,11 @@ void setup() {
 //  Serial.print(__DATE__);
 //  Serial.println(__TIME__);
   delay(1000);
+  Serial.println("Wordclock by Stephan van Rooij");
+
+  // Start neopixel module and run some tests.
+  pixels.begin();
+  testLeds();
 
   // Configure the Clock module.
   setupClock();
@@ -188,9 +194,7 @@ void setup() {
   // RTC Need wifi, this is enabled in setupOTA, so enanble that as well.
   setRTC();
 
-  // Start neopixel module and run some tests.
-  pixels.begin();
-  testLeds();
+
 }
 
 // Setup for the RTC module.
@@ -259,7 +263,7 @@ void loop() {
     // Should the app crash if the time is not correct??
   }
   ArduinoOTA.handle();
-  delay(5000);
+  delay(1000);
 }
 
 // function copied from rtc sample.
@@ -283,13 +287,19 @@ void printDateTime(const RtcDateTime& dt) {
 
 void testLeds(){
 
-  pixels.setBrightness(40);
-  colorWipe(colorRed,30);
-  colorWipe(colorGreen,30);
-  colorWipe(colorBlue,30);
-  colorWipe(colorBlack,30);
+  pixels.setBrightness(120);
+  Serial.println("Color wipe red");
+  colorWipe(colorRed,12);
+  Serial.println("Color wipe green");
+  colorWipe(colorGreen,12);
+  Serial.println("Color wipe blue");
+  colorWipe(colorBlue,12);
+  Serial.println("Color wipe black");
+  colorWipe(colorBlack,5);
+  
   spellWord(wrdStephan,colorJGreen);
-  delay(3000);
+  blinkMinutes();
+  delay(1000);
 }
 
 // This is the main function for setting the correct words based on the time.
@@ -298,15 +308,18 @@ void setLedsByTime(const RtcDateTime& dt){
   
   int minutes = dt.Minute();
 
-  if(minutes == 0 && dt.Second() < 11){
+  if(minutes == 0 && dt.Second() < 6){
+    Serial.println("Spell creator");
     spellWord(wrdStephan,colorJGreen);
-    delay(9000);
-    colorWipe(colorBlack);
+    delay(5000);
+    setRTC();
+    return;
+    //colorWipe(colorBlack);
   }
 
   int uren = dt.Hour();
   if(uren >= 8 && uren < 22) {
-    pixels.setBrightness(100);
+    pixels.setBrightness(180);
   } else {
     pixels.setBrightness(40);
   }
@@ -497,14 +510,16 @@ void spellWord(int arrWord[], uint32_t intColor){
 }
 
 void setRTC(){
-  Serial.print("RTC before : ");
+  Serial.print("RTC before: ");
   printDateTime(Rtc.GetDateTime());
 
   // Get a random IP from the pool
   WiFi.hostByName(ntpServerName, timeServerIP);
 
   sendNTPpacket(timeServerIP);
-  delay(1000);
+  // Blink leds instead of waiting.
+  blinkMinutes();
+  //delay(1000);
 
   int cb = udp.parsePacket();
   if (!cb) {
@@ -608,6 +623,24 @@ unsigned long sendNTPpacket(IPAddress& address){
   udp.beginPacket(address, 123); //NTP requests are to port 123
   udp.write(ntpBuffer, NTP_PACKET_SIZE);
   udp.endPacket();
+}
+
+void blinkMinutes(){
+  for(int i = 0; i < 4; i++){
+    blinkLed(minLeds[i]);
+  }
+
+}
+
+void blinkLed(int led){
+  pixels.setPixelColor(led,colorYellow);
+    pixels.show();
+    delay(250);
+    pixels.setPixelColor(led,colorBlack);
+    pixels.show();
+    delay(250);
+    pixels.setPixelColor(led,colorYellow);
+    pixels.show();
 }
 
 
