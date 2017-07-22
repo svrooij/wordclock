@@ -194,7 +194,6 @@ void setup() {
   // RTC Need wifi, this is enabled in setupOTA, so enanble that as well.
   setRTC();
 
-
 }
 
 // Setup for the RTC module.
@@ -296,7 +295,7 @@ void testLeds(){
   colorWipe(colorBlue,12);
   Serial.println("Color wipe black");
   colorWipe(colorBlack,5);
-  
+
   spellWord(wrdStephan,colorJGreen);
   blinkMinutes();
   delay(1000);
@@ -305,7 +304,7 @@ void testLeds(){
 // This is the main function for setting the correct words based on the time.
 void setLedsByTime(const RtcDateTime& dt){
   colorWipe(colorBlack);
-  
+
   int minutes = dt.Minute();
 
   if(minutes == 0 && dt.Second() < 6){
@@ -331,11 +330,13 @@ void setLedsByTime(const RtcDateTime& dt){
   // modMin is the minutes left over if devived by 5
   int modMin = minutes % 5;
 
-  if(minutes > 5) {
+  if(minutes >= 5) {
     // The words only change every 5 minutes
     // So we take the minutes minus the modulo 5 and devide it by 5.
     int dividedMin = (minutes - modMin) / 5;
     paintMinuteWords(dividedMin);
+  } else { // Print 'uur' when minutes is below 5
+    paintWord(wrdUur);
   }
 
   // Hour setting.
@@ -346,11 +347,6 @@ void setLedsByTime(const RtcDateTime& dt){
     uur++;
   }
   paintHour(uur);
-
-  // Uur
-  if(minutes >= 0 && minutes < 6){
-    paintWord(wrdUur);
-  }
 
   // Minute LEDS in the 4 corners
   if(modMin > 0) {
@@ -595,7 +591,7 @@ void setRTC(){
     if (f4 > 0.4) t4++;    // adjust fractional part, see above
     Rtc.SetDateTime(t4);
     Serial.print("RTC after : ");
-    printDateTime(Rtc.GetDateTime());    
+    printDateTime(Rtc.GetDateTime());
     Serial.println();
     printDateTime(t4); Serial.println(f4, 4);
     Serial.println();
@@ -642,5 +638,3 @@ void blinkLed(int led){
     pixels.setPixelColor(led,colorYellow);
     pixels.show();
 }
-
-
