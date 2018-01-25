@@ -3,6 +3,8 @@ This repo contains the code for my personal Arduino Wordclock build with some wo
 
 Building a wordclock can also be done by multiplexing, but with the cheap addressable leds you can drive your wordclock and use it as a 11x10 led matrix with multiple colors.
 
+[![Wordclock demo video](https://img.youtube.com/vi/V10vd-6iS_I/0.jpg)](https://www.youtube.com/watch?v=V10vd-6iS_I)
+
 # Hardware
 
 - 1 ESP8266 I've used the NodeMCU. (€8)
