@@ -28,6 +28,7 @@ RtcDS1307<TwoWire> Rtc(Wire);
 
 #define LEDPIN 3
 #define NUMPIXELS 114
+#define UTCOFFSET 1
 
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, LEDPIN, NEO_GRB + NEO_KHZ800);
 
@@ -91,6 +92,7 @@ int minLeds[] = {0,12,101,113};
 
 // Extra words
 int wrdStephan[] = {6,18,29,40,51,63,85,-1};
+int wrdAlrieke[] = {44, 43, 27, 5, 29, 30, 36};
 
 // Settings
 const bool drawHetIs = true;
@@ -262,7 +264,7 @@ void loop() {
     // Should the app crash if the time is not correct??
   }
   ArduinoOTA.handle();
-  delay(1000);
+  delay(5000);
 }
 
 // function copied from rtc sample.
@@ -287,14 +289,14 @@ void printDateTime(const RtcDateTime& dt) {
 void testLeds(){
 
   pixels.setBrightness(120);
-  Serial.println("Color wipe red");
-  colorWipe(colorRed,12);
   Serial.println("Color wipe green");
-  colorWipe(colorGreen,12);
+  colorWipe(colorGreen,5);
   Serial.println("Color wipe blue");
-  colorWipe(colorBlue,12);
-  Serial.println("Color wipe black");
-  colorWipe(colorBlack,5);
+  colorWipe(colorBlue,5);
+  Serial.println("Color wipe red");
+  colorWipe(colorRed,5);
+//  Serial.println("Color wipe black");
+//  colorWipe(colorBlack,5);
 
   spellWord(wrdStephan,colorJGreen);
   blinkMinutes();
@@ -306,21 +308,25 @@ void setLedsByTime(const RtcDateTime& dt){
   colorWipe(colorBlack);
 
   int minutes = dt.Minute();
+  int uren = dt.Hour();
 
   if(minutes == 0 && dt.Second() < 6){
     Serial.println("Spell creator");
-    spellWord(wrdStephan,colorJGreen);
+    if(uren % 2 == 0) {
+      spellWord(wrdAlrieke, colorJGreen);
+    } else {
+      spellWord(wrdStephan,colorJGreen);
+    }
     delay(5000);
     setRTC();
     return;
     //colorWipe(colorBlack);
   }
 
-  int uren = dt.Hour();
   if(uren >= 8 && uren < 22) {
-    pixels.setBrightness(180);
+    pixels.setBrightness(140);
   } else {
-    pixels.setBrightness(40);
+    pixels.setBrightness(55);
   }
 
   if(drawHetIs){
@@ -586,7 +592,7 @@ void setRTC(){
     // Adjust timezone and DST... in my case substract 4 hours for Chile Time
     // or work in UTC?
     //t4 -= (4 * 3600L);     // Notice the L for long calculations!!
-    t4 += (2 * 3600L);
+    t4 += (UTCOFFSET * 3600L);
     t4 += 1;               // adjust the delay(1000) at begin of loop!
     if (f4 > 0.4) t4++;    // adjust fractional part, see above
     Rtc.SetDateTime(t4);
